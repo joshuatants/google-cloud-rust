@@ -1,3 +1,4 @@
+// ANNOTATED AND DONE
 // Copyright 2025 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +15,17 @@
 
 //! Defines the return type for [Storage::open_object][crate::client::Storage::open_object].
 
+// Import HeaderMap from the http module.
 use crate::http::HeaderMap;
+// Import Object from the model module.
 use crate::model::Object;
+// Import ReadRange from the model_ext module.
 use crate::model_ext::ReadRange;
+// Import ReadObjectResponse from the read_object module.
 use crate::read_object::ReadObjectResponse;
+// Import ObjectDescriptorStub trait for dynamic dispatch.
 use crate::storage::bidi::stub::dynamic::ObjectDescriptor as ObjectDescriptorStub;
+// Import Arc for thread-safe reference counting.
 use std::sync::Arc;
 
 /// An open object ready to read one or more ranges.
@@ -54,11 +61,14 @@ use std::sync::Arc;
 /// You should actively read from all concurrent reads: the client library uses
 /// separate buffers for each `read_range()` call, but once a buffer is full the
 /// library will stop delivering data to **all** the concurrent reads.
+// Define a public struct named ObjectDescriptor. derive Debug and Clone traits.
 #[derive(Debug, Clone)]
 pub struct ObjectDescriptor {
+    // Inner field storing the implementation of ObjectDescriptorStub wrapped in an Arc.
     inner: Arc<dyn ObjectDescriptorStub>,
 }
 
+// Implement methods for ObjectDescriptor.
 impl ObjectDescriptor {
     /// Returns the metadata for the open object.
     ///
@@ -76,7 +86,9 @@ impl ObjectDescriptor {
     /// # Ok(()) }
     /// ```
     ///
+    // Define a public method object that returns the object metadata.
     pub fn object(&self) -> Object {
+        // Delegate to the inner stub.
         self.inner.object()
     }
 
@@ -109,7 +121,9 @@ impl ObjectDescriptor {
     /// }
     /// # Ok(()) }
     /// ```
+    // Define a public async method read_range to read a specific range of the object.
     pub async fn read_range(&self, range: ReadRange) -> ReadObjectResponse {
+        // Delegate to the inner stub.
         self.inner.read_range(range).await
     }
 
@@ -130,7 +144,9 @@ impl ObjectDescriptor {
     /// }
     /// # Ok(()) }
     /// ```
+    // Define a public method headers that returns the HTTP headers.
     pub fn headers(&self) -> HeaderMap {
+        // Delegate to the inner stub.
         self.inner.headers()
     }
 
@@ -138,25 +154,37 @@ impl ObjectDescriptor {
     ///
     /// Application developers should only need to create an `ObjectDescriptor`
     /// in unit tests.
+    // Define a public constructor new that takes an inner implementation.
     pub fn new<T>(inner: T) -> Self
     where
+        // Constraint: T must implement crate::stub::ObjectDescriptor and have 'static lifetime.
         T: crate::stub::ObjectDescriptor + 'static,
     {
+        // Return a new ObjectDescriptor instance.
         Self {
+            // Wrap the inner object in an Arc.
             inner: Arc::new(inner),
         }
     }
 }
 
+// Conditionally compile the tests module only when running tests.
 #[cfg(test)]
 mod tests {
+    // Import everything from the parent module.
     use super::*;
+    // Import ObjectHighlights from model_ext.
     use crate::model_ext::ObjectHighlights;
+    // Import ReadObjectResponse from read_object.
     use crate::read_object::ReadObjectResponse;
+    // Import HeaderName and HeaderValue from http.
     use http::{HeaderName, HeaderValue};
+    // Import mock macro from mockall.
     use mockall::mock;
+    // Import assert_impl_all macro from static_assertions.
     use static_assertions::assert_impl_all;
 
+    // Test that ObjectDescriptor implements Clone and Debug.
     #[test]
     fn impls() {
         assert_impl_all!(ObjectDescriptor: Clone, std::fmt::Debug);
@@ -166,7 +194,9 @@ mod tests {
     // TODO(#3838) - support mocking outside the crate too.
     #[tokio::test]
     async fn can_be_mocked() -> anyhow::Result<()> {
+        // Create a test object.
         let object = Object::new().set_name("test-object").set_generation(123456);
+        // Create test headers.
         let headers = HeaderMap::from_iter(
             [
                 ("content-type", "application/octet-stream"),
@@ -174,22 +204,32 @@ mod tests {
             ]
             .map(|(k, v)| (HeaderName::from_static(k), HeaderValue::from_static(v))),
         );
+        // Create a mock descriptor.
         let mut mock = MockDescriptor::new();
+        // Expect object() to be called once and return the test object.
         mock.expect_object().times(1).return_const(object.clone());
+        // Expect read_range() to be called once with a specific range.
         mock.expect_read_range()
             .times(1)
             .withf(|range| range.0 == ReadRange::segment(100, 200).0)
             .returning(|_| ReadObjectResponse::new(Box::new(MockResponse::new())));
+        // Expect headers() to be called once and return the test headers.
         mock.expect_headers().times(1).return_const(headers.clone());
 
+        // Create an ObjectDescriptor from the mock.
         let descriptor = ObjectDescriptor::new(mock);
+        // Assert object() returns correct object.
         assert_eq!(descriptor.object(), object);
+        // Assert headers() returns correct headers.
         assert_eq!(descriptor.headers(), headers);
 
+        // Call read_range() to satisfy the expectation.
         let _reader = descriptor.read_range(ReadRange::segment(100, 200)).await;
+        // Return Ok.
         Ok(())
     }
 
+    // Define a mock struct named Descriptor.
     mock! {
         #[derive(Debug)]
         Descriptor {}
@@ -201,6 +241,7 @@ mod tests {
         }
     }
 
+    // Define a mock struct named Response.
     mock! {
         #[derive(Debug)]
         Response {}

@@ -1,3 +1,4 @@
+// ANNOTATED AND DONE
 // Copyright 2025 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,18 +39,24 @@
 //! }
 //! ```
 
+// Import Error from crate root.
 use crate::Error;
+// Import Code from google_cloud_gax::error::rpc.
 use google_cloud_gax::error::rpc::Code;
 
+// Re-export RetryResult as ResumeResult.
 pub use google_cloud_gax::retry_result::RetryResult as ResumeResult;
 
 /// Defines the interface to resume policies.
+// Define a public trait ReadResumePolicy. extend Send, Sync, and Debug.
 pub trait ReadResumePolicy: Send + Sync + std::fmt::Debug {
     /// Determines if the read should continue after an error.
+    // Define a method on_error that takes a status and error, and returns a ResumeResult.
     fn on_error(&self, status: &ResumeQuery, error: Error) -> ResumeResult;
 }
 
 /// Extension trait for [ReadResumePolicy].
+// Define a public trait ReadResumePolicyExt. extend Sized.
 pub trait ReadResumePolicyExt: Sized {
     /// Decorates a [ReadResumePolicy] to limit the number of resume attempts.
     ///
@@ -78,10 +85,13 @@ pub trait ReadResumePolicyExt: Sized {
     ///    # Error::io("something failed in the read request")
     /// }
     /// ```
+    // Define a method with_attempt_limit that wraps self in LimitedAttemptCount.
     fn with_attempt_limit(self, maximum_attempts: u32) -> LimitedAttemptCount<Self> {
+        // Create new LimitedAttemptCount.
         LimitedAttemptCount::new(self, maximum_attempts)
     }
 }
+// Implement ReadResumePolicyExt for any type T implementing ReadResumePolicy.
 impl<T: ReadResumePolicy> ReadResumePolicyExt for T {}
 
 /// The inputs into a resume policy query.
@@ -92,16 +102,22 @@ impl<T: ReadResumePolicy> ReadResumePolicyExt for T {}
 ///
 /// We use a struct so we can grow the amount of information without breaking
 /// existing resume policies.
+// Define a public struct ResumeQuery. derive Debug.
 #[derive(Debug)]
+// Mark as non_exhaustive.
 #[non_exhaustive]
 pub struct ResumeQuery {
     /// The number of times the read request has been interrupted already.
+    // Public field attempt_count.
     pub attempt_count: u32,
 }
 
+// Implement methods for ResumeQuery.
 impl ResumeQuery {
     /// Create a new instance.
+    // Define public constructor new.
     pub fn new(attempt_count: u32) -> Self {
+        // Return new ResumeQuery.
         Self { attempt_count }
     }
 }
@@ -128,33 +144,46 @@ impl ResumeQuery {
 ///    # Error::deser("something failed in the read request")
 /// }
 /// ```
+// Define public struct Recommended. derive Debug.
 #[derive(Debug)]
 pub struct Recommended;
 
+// Implement ReadResumePolicy for Recommended.
 impl ReadResumePolicy for Recommended {
+    // Implement on_error.
     fn on_error(&self, _status: &ResumeQuery, error: Error) -> ResumeResult {
+        // Match on error.
         match error {
+            // If transient, continue.
             e if self::is_transient(&e) => ResumeResult::Continue(e),
+            // Otherwise, permanent.
             e => ResumeResult::Permanent(e),
         }
     }
 }
 
+// Helper function to check if error is transient.
 fn is_transient(error: &Error) -> bool {
+    // Match on error.
     match error {
         // When using HTTP the only error after the read starts are I/O errors.
         e if e.is_io() => true,
         // When using gRPC the errors may include more information.
         e if e.is_transport() => true,
+        // Timeout errors are transient.
         e if e.is_timeout() => true,
+        // Check status code if present.
         e => e.status().is_some_and(|s| is_transient_code(s.code)),
     }
 }
 
+// Helper function to check if status code is transient.
 fn is_transient_code(code: Code) -> bool {
     // DeadlineExceeded is safe in this context because local deadline errors are not reported via e.status()
+    // Match on code.
     matches!(
         code,
+        // Unavailable, ResourceExhausted, Internal, DeadlineExceeded are transient.
         Code::Unavailable | Code::ResourceExhausted | Code::Internal | Code::DeadlineExceeded
     )
 }
@@ -179,11 +208,15 @@ fn is_transient_code(code: Code) -> bool {
 ///    # Error::deser("something failed in the read request")
 /// }
 /// ```
+// Define public struct AlwaysResume. derive Debug.
 #[derive(Debug)]
 pub struct AlwaysResume;
 
+// Implement ReadResumePolicy for AlwaysResume.
 impl ReadResumePolicy for AlwaysResume {
+    // Implement on_error.
     fn on_error(&self, _status: &ResumeQuery, error: Error) -> ResumeResult {
+        // Always return Continue.
         ResumeResult::Continue(error)
     }
 }
@@ -207,10 +240,14 @@ impl ReadResumePolicy for AlwaysResume {
 ///    # Error::io("something failed in the read request")
 /// }
 /// ```
+// Define public struct NeverResume. derive Debug.
 #[derive(Debug)]
 pub struct NeverResume;
+// Implement ReadResumePolicy for NeverResume.
 impl ReadResumePolicy for NeverResume {
+    // Implement on_error.
     fn on_error(&self, _status: &ResumeQuery, error: Error) -> ResumeResult {
+        // Always return Permanent.
         ResumeResult::Permanent(error)
     }
 }
@@ -232,15 +269,21 @@ impl ReadResumePolicy for NeverResume {
 ///    # Error::deser("something failed in the read request")
 /// }
 /// ```
+// Define public struct LimitedAttemptCount. derive Debug.
 #[derive(Debug)]
 pub struct LimitedAttemptCount<P> {
+    // Inner policy.
     inner: P,
+    // Maximum attempts.
     maximum_attempts: u32,
 }
 
+// Implement methods for LimitedAttemptCount.
 impl<P> LimitedAttemptCount<P> {
     /// Create a new instance.
+    // Define public constructor new.
     pub fn new(inner: P, maximum_attempts: u32) -> Self {
+        // Return new LimitedAttemptCount.
         Self {
             inner,
             maximum_attempts,
@@ -248,127 +291,175 @@ impl<P> LimitedAttemptCount<P> {
     }
 }
 
+// Implement ReadResumePolicy for LimitedAttemptCount where P implements ReadResumePolicy.
 impl<P> ReadResumePolicy for LimitedAttemptCount<P>
 where
     P: ReadResumePolicy,
 {
+    // Implement on_error.
     fn on_error(&self, status: &ResumeQuery, error: Error) -> ResumeResult {
+        // Delegate to inner policy.
         match self.inner.on_error(status, error) {
+            // If inner policy says continue, check attempt count.
             ResumeResult::Continue(e) if status.attempt_count >= self.maximum_attempts => {
+                // If limit reached, return Exhausted.
                 ResumeResult::Exhausted(e)
             }
+            // Otherwise return inner result.
             result => result,
         }
     }
 }
 
+// Conditionally compile the tests module only when running tests.
 #[cfg(test)]
 mod tests {
+    // Import everything from the parent module.
     use super::*;
 
+    // Test recommended policy.
     #[test]
     fn recommended() {
+        // Create Recommended policy.
         let policy = Recommended;
+        // Test with transient error.
         let r = policy.on_error(&ResumeQuery::new(0), common_transient());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test with timeout error.
         let r = policy.on_error(&ResumeQuery::new(0), common_timeout());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test with HTTP transient error.
         let r = policy.on_error(&ResumeQuery::new(0), http_transient());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test with gRPC DeadlineExceeded.
         let r = policy.on_error(&ResumeQuery::new(0), grpc_deadline_exceeded());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test with gRPC Internal.
         let r = policy.on_error(&ResumeQuery::new(0), grpc_internal());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test with gRPC ResourceExhausted.
         let r = policy.on_error(&ResumeQuery::new(0), grpc_resource_exhausted());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test with gRPC Unavailable.
         let r = policy.on_error(&ResumeQuery::new(0), grpc_unavailable());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
 
+        // Test with HTTP permanent error.
         let r = policy.on_error(&ResumeQuery::new(0), http_permanent());
         assert!(matches!(r, ResumeResult::Permanent(_)), "{r:?}");
+        // Test with gRPC permanent error.
         let r = policy.on_error(&ResumeQuery::new(0), grpc_permanent());
         assert!(matches!(r, ResumeResult::Permanent(_)), "{r:?}");
     }
 
+    // Test always resume policy.
     #[test]
     fn always_resume() {
+        // Create AlwaysResume policy.
         let policy = AlwaysResume;
+        // Test with transient error.
         let r = policy.on_error(&ResumeQuery::new(0), http_transient());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test with permanent error.
         let r = policy.on_error(&ResumeQuery::new(0), http_permanent());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
     }
 
+    // Test never resume policy.
     #[test]
     fn never_resume() {
+        // Create NeverResume policy.
         let policy = NeverResume;
+        // Test with transient error.
         let r = policy.on_error(&ResumeQuery::new(0), http_transient());
         assert!(matches!(r, ResumeResult::Permanent(_)), "{r:?}");
+        // Test with permanent error.
         let r = policy.on_error(&ResumeQuery::new(0), http_permanent());
         assert!(matches!(r, ResumeResult::Permanent(_)), "{r:?}");
     }
 
+    // Test attempt limit.
     #[test]
     fn attempt_limit() {
+        // Create Recommended policy with limit 3.
         let policy = Recommended.with_attempt_limit(3);
+        // Test attempt 0.
         let r = policy.on_error(&ResumeQuery::new(0), http_transient());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test attempt 1.
         let r = policy.on_error(&ResumeQuery::new(1), http_transient());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test attempt 2.
         let r = policy.on_error(&ResumeQuery::new(2), http_transient());
         assert!(matches!(r, ResumeResult::Continue(_)), "{r:?}");
+        // Test attempt 3 (limit reached).
         let r = policy.on_error(&ResumeQuery::new(3), http_transient());
         assert!(matches!(r, ResumeResult::Exhausted(_)), "{r:?}");
 
+        // Test permanent error attempt 0.
         let r = policy.on_error(&ResumeQuery::new(0), http_permanent());
         assert!(matches!(r, ResumeResult::Permanent(_)), "{r:?}");
+        // Test permanent error attempt 3.
         let r = policy.on_error(&ResumeQuery::new(3), http_permanent());
         assert!(matches!(r, ResumeResult::Permanent(_)), "{r:?}");
     }
 
+    // Test stacked attempt limits.
     #[test]
     fn attempt_limit_inner_exhausted() {
+        // Create policy with two limits.
         let policy = AlwaysResume.with_attempt_limit(3).with_attempt_limit(5);
+        // Test attempt 3 (inner limit reached).
         let r = policy.on_error(&ResumeQuery::new(3), http_transient());
         assert!(matches!(r, ResumeResult::Exhausted(_)), "{r:?}");
     }
 
+    // Helper to create HTTP transient error.
     fn http_transient() -> Error {
         Error::io("test only")
     }
 
+    // Helper to create HTTP permanent error.
     fn http_permanent() -> Error {
         Error::deser("bad data")
     }
 
+    // Helper to create common transient error.
     fn common_transient() -> Error {
         Error::transport(http::HeaderMap::new(), "test-only")
     }
 
+    // Helper to create common timeout error.
     fn common_timeout() -> Error {
         Error::timeout("simulated timeout")
     }
 
+    // Helper to create gRPC DeadlineExceeded error.
     fn grpc_deadline_exceeded() -> Error {
         grpc_error(Code::DeadlineExceeded)
     }
 
+    // Helper to create gRPC Internal error.
     fn grpc_internal() -> Error {
         grpc_error(Code::Internal)
     }
 
+    // Helper to create gRPC ResourceExhausted error.
     fn grpc_resource_exhausted() -> Error {
         grpc_error(Code::ResourceExhausted)
     }
 
+    // Helper to create gRPC Unavailable error.
     fn grpc_unavailable() -> Error {
         grpc_error(Code::Unavailable)
     }
 
+    // Helper to create gRPC permanent error.
     fn grpc_permanent() -> Error {
         grpc_error(Code::PermissionDenied)
     }
 
+    // Helper to create gRPC error from code.
     fn grpc_error(code: Code) -> Error {
         let status = google_cloud_gax::error::rpc::Status::default().set_code(code);
         Error::service(status)

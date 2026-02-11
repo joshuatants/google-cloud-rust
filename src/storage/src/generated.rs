@@ -1,3 +1,4 @@
+// ANNOTATED AND DONE
 // Copyright 2025 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,5 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Declare a crate-private module named gapic.
 pub(crate) mod gapic;
+// Declare a crate-private module named gapic_control.
 pub(crate) mod gapic_control;
