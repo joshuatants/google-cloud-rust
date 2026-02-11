@@ -250,6 +250,26 @@ impl<F, Cr> ClientBuilder<F, Cr> {
         self
     }
 
+    /// Sets the user-agent.
+    ///
+    /// The `user-agent` header is sent with all requests. It is used to identify
+    /// the client to the server.
+    ///
+    /// ```
+    /// # use google_cloud_gax::client_builder::examples;
+    /// # use google_cloud_gax::client_builder::Result;
+    /// # tokio_test::block_on(async {
+    /// use examples::Client; // Placeholder for examples
+    /// let client = Client::builder()
+    ///     .with_user_agent("test-only/1.2.3")
+    ///     .build().await?;
+    /// # Result::<()>::Ok(()) });
+    /// ```
+    pub fn with_user_agent<V: Into<String>>(mut self, v: V) -> Self {
+        self.config.user_agent = Some(v.into());
+        self
+    }
+
     /// Configure the retry policy.
     ///
     /// The client libraries can automatically retry operations that fail. The
@@ -416,6 +436,7 @@ pub mod internal {
     #[non_exhaustive]
     pub struct ClientConfig<Cr> {
         pub endpoint: Option<String>,
+        pub user_agent: Option<String>,
         pub cred: Option<Cr>,
         pub tracing: bool,
         pub retry_policy: Option<Arc<dyn RetryPolicy>>,
@@ -435,6 +456,7 @@ pub mod internal {
             use std::sync::{Arc, Mutex};
             Self {
                 endpoint: None,
+                user_agent: None,
                 cred: None,
                 tracing: false,
                 retry_policy: None,
@@ -585,6 +607,17 @@ pub mod examples {
             let client = Client::builder().with_tracing().build().await.unwrap();
             let config = client.0;
             assert!(config.tracing);
+        }
+
+        #[tokio::test]
+        async fn user_agent() {
+            let client = Client::builder()
+                .with_user_agent("test-only/1.2.3")
+                .build()
+                .await
+                .unwrap();
+            let config = client.0;
+            assert_eq!(config.user_agent.as_deref(), Some("test-only/1.2.3"));
         }
 
         #[tokio::test]

@@ -51,6 +51,30 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_user_agent_with_prefix() -> anyhow::Result<()> {
+        let (endpoint, _server) = start_echo_server().await?;
+        let client = builder(endpoint)
+            .with_credentials(test_credentials())
+            .with_user_agent("test-prefix/1.2.3")
+            .build()
+            .await?;
+
+        let options = RequestOptions::default();
+        let response = send_request(client, options).await?;
+        let user_agent = response
+            .metadata
+            .get(http::header::USER_AGENT.as_str())
+            .map(String::as_str)
+            .expect("There should be a User-Agent header");
+        let components: Vec<&str> = user_agent.split(' ').collect();
+        assert!(
+            components.contains(&"test-prefix/1.2.3"),
+            "User-Agent: {user_agent}"
+        );
+        Ok(())
+    }
+
     async fn send_request(
         client: grpc::Client,
         options: RequestOptions,

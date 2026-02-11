@@ -449,6 +449,24 @@ impl ClientBuilder {
         self
     }
 
+    /// Sets the user-agent.
+    ///
+    /// The `user-agent` header is sent with all requests. It is used to identify
+    /// the client to the server.
+    ///
+    /// ```
+    /// # use google_cloud_storage::client::Storage;
+    /// # async fn sample() -> anyhow::Result<()> {
+    /// let client = Storage::builder()
+    ///     .with_user_agent("test-only/1.2.3")
+    ///     .build().await?;
+    /// # Ok(()) }
+    /// ```
+    pub fn with_user_agent<V: Into<String>>(mut self, v: V) -> Self {
+        self.config.user_agent = Some(v.into());
+        self
+    }
+
     /// Configure the retry policy.
     ///
     /// The client libraries can automatically retry operations that fail. The
