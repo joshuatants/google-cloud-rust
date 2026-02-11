@@ -205,12 +205,18 @@ impl ReqwestClient {
             .as_deref()
             .or(self.user_agent.as_deref());
 
-        if let Some(user_agent) = user_agent {
-            builder = builder.header(
-                ::reqwest::header::USER_AGENT,
-                reqwest::HeaderValue::from_str(user_agent).map_err(Error::ser)?,
-            );
-        }
+        let library_agent = crate::api_header::generic_rest_user_agent();
+        let user_agent = if let Some(user_agent) = user_agent {
+            format!("{} {}", user_agent, library_agent)
+        } else {
+            library_agent
+        };
+
+        builder = builder.header(
+            ::reqwest::header::USER_AGENT,
+            reqwest::HeaderValue::from_str(&user_agent).map_err(Error::ser)?,
+        );
+
         builder = builder.header(::reqwest::header::HOST, &self.host);
         Ok(builder)
     }
@@ -799,6 +805,9 @@ mod tests {
     async fn test_user_agent_header() -> TestResult {
         let client_agent = "client-agent/1.0.0";
         let request_agent = "request-agent/1.0.0";
+        let library_agent = crate::api_header::generic_rest_user_agent();
+        let full_client_agent = format!("{} {}", client_agent, library_agent);
+        let full_request_agent = format!("{} {}", request_agent, library_agent);
 
         let server = httptest::Server::run();
         server.expect(
@@ -806,7 +815,7 @@ mod tests {
                 httptest::matchers::request::method_path("GET", "/foo"),
                 httptest::matchers::request::headers(httptest::matchers::contains((
                     "user-agent",
-                    client_agent
+                    full_client_agent
                 ))),
             ])
             .times(1)
@@ -817,7 +826,7 @@ mod tests {
                 httptest::matchers::request::method_path("GET", "/foo"),
                 httptest::matchers::request::headers(httptest::matchers::contains((
                     "user-agent",
-                    request_agent
+                    full_request_agent
                 ))),
             ])
             .times(1)
@@ -841,6 +850,37 @@ mod tests {
         let builder = client.builder(Method::GET, "foo".to_string());
         let mut options = RequestOptions::default();
         options.set_user_agent(request_agent);
+        let _ = client
+            .execute_streaming_once(builder, options, None, 0)
+            .await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_user_agent_header_default() -> TestResult {
+        let library_agent = crate::api_header::generic_rest_user_agent();
+
+        let server = httptest::Server::run();
+        server.expect(
+            httptest::Expectation::matching(httptest::matchers::all_of![
+                httptest::matchers::request::method_path("GET", "/foo"),
+                httptest::matchers::request::headers(httptest::matchers::contains((
+                    "user-agent",
+                    library_agent
+                ))),
+            ])
+            .times(1)
+            .respond_with(httptest::responders::status_code(200)),
+        );
+
+        let mut config = ClientConfig::default();
+        config.cred = Some(Anonymous::new().build());
+
+        let client = ReqwestClient::new(config, &server.url_str("/")).await?;
+
+        let builder = client.builder(Method::GET, "foo".to_string());
+        let options = RequestOptions::default();
         let _ = client
             .execute_streaming_once(builder, options, None, 0)
             .await?;

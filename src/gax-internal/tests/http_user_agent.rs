@@ -39,7 +39,8 @@ mod tests {
             .await?
             .into_body();
         let got = get_header_value(&response, "user-agent");
-        assert_eq!(got, None);
+        let library_agent = google_cloud_gax_internal::api_header::generic_rest_user_agent();
+        assert_eq!(got.as_deref(), Some(library_agent.as_str()));
         Ok(())
     }
 
@@ -64,7 +65,9 @@ mod tests {
             .await?
             .into_body();
         let got = get_header_value(&response, "user-agent");
-        assert_eq!(got.as_deref(), Some(prefix));
+        let library_agent = google_cloud_gax_internal::api_header::generic_rest_user_agent();
+        let expected = format!("{} {}", prefix, library_agent);
+        assert_eq!(got.as_deref(), Some(expected.as_str()));
         Ok(())
     }
 

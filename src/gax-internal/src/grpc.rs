@@ -432,12 +432,17 @@ impl Client {
             .as_deref()
             .or(self.user_agent.as_deref());
 
-        if let Some(user_agent) = user_agent {
-            headers.append(
-                http::header::USER_AGENT,
-                http::header::HeaderValue::from_str(user_agent).map_err(Error::ser)?,
-            );
-        }
+        let user_agent = if let Some(user_agent) = user_agent {
+            format!("{} {}", user_agent, api_client_header)
+        } else {
+            api_client_header.to_string()
+        };
+
+        headers.append(
+            http::header::USER_AGENT,
+            http::header::HeaderValue::from_str(&user_agent).map_err(Error::ser)?,
+        );
+
         headers.append(
             http::header::HeaderName::from_static("x-goog-api-client"),
             http::header::HeaderValue::from_static(api_client_header),
@@ -556,7 +561,7 @@ mod headers_tests {
             .iter()
             .map(|v| v.to_str().unwrap())
             .collect();
-        assert_eq!(agents, vec![client_agent]);
+        assert_eq!(agents, vec![format!("{} {}", client_agent, api_client)]);
 
         // Test that request agent overrides client agent
         let mut options = RequestOptions::default();
@@ -567,6 +572,22 @@ mod headers_tests {
             .iter()
             .map(|v| v.to_str().unwrap())
             .collect();
-        assert_eq!(agents, vec![request_agent]);
+        assert_eq!(agents, vec![format!("{} {}", request_agent, api_client)]);
+    }
+
+    #[tokio::test]
+    async fn test_user_agent_headers_default() {
+        let api_client = "api-client";
+        let config = crate::options::ClientConfig::default();
+        let client = Client::new(config, "http://example.com").await.unwrap();
+
+        let options = RequestOptions::default();
+        let headers = client.make_headers(api_client, "", &options).await.unwrap();
+        let agents: Vec<_> = headers
+            .get_all(http::header::USER_AGENT)
+            .iter()
+            .map(|v| v.to_str().unwrap())
+            .collect();
+        assert_eq!(agents, vec![api_client]);
     }
 }

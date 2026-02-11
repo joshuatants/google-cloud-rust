@@ -72,6 +72,23 @@ impl XGoogApiClient {
     }
 }
 
+/// Format the struct as needed for the `x-goog-api-client` header.
+pub fn generic_rest_user_agent() -> String {
+    // Strip out the initial "rustc " string from `RUSTC_VERSION`. If not
+    // found, leave RUSTC_VERSION unchanged.
+    let rustc_version = build_info::RUSTC_VERSION;
+    let rustc_version = rustc_version
+        .strip_prefix("rustc ")
+        .unwrap_or(build_info::RUSTC_VERSION);
+
+    // Capture the gax version too.
+    let gax_version = build_info::PKG_VERSION;
+
+    format!(
+        "gl-rust/{rustc_version} gax/{gax_version} rest/{gax_version}-reqwest"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
