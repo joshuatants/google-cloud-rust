@@ -650,6 +650,15 @@ where
         self
     }
 
+    /// Sets the user-agent.
+    ///
+    /// The `user-agent` header is sent with all requests. It is used to identify
+    /// the client to the server.
+    pub fn with_user_agent<V: Into<String>>(mut self, v: V) -> Self {
+        self.options.user_agent = Some(v.into());
+        self
+    }
+
     /// The retry policy used for this request.
     ///
     /// # Example

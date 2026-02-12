@@ -43,6 +43,7 @@ pub struct RequestOptions {
     pub(crate) automatic_decompression: bool,
     pub(crate) common_options: CommonOptions,
     pub(crate) bidi_attempt_timeout: Duration,
+    pub(crate) user_agent: Option<String>,
 }
 
 impl RequestOptions {
@@ -71,12 +72,14 @@ impl RequestOptions {
             .clone()
             .unwrap_or_else(|| Arc::new(crate::backoff_policy::default()));
         let retry_throttler = config.retry_throttler.clone();
-        Self::new_with_policies(
+        let mut opts = Self::new_with_policies(
             retry_policy,
             backoff_policy,
             retry_throttler,
             common_options,
-        )
+        );
+        opts.user_agent = config.user_agent.clone();
+        opts
     }
 
     pub fn set_read_resume_policy(&mut self, v: Arc<dyn ReadResumePolicy>) {
@@ -125,6 +128,7 @@ impl RequestOptions {
             },
             automatic_decompression: false,
             bidi_attempt_timeout: DEFAULT_BIDI_ATTEMPT_TIMEOUT,
+            user_agent: None,
         }
     }
 
@@ -135,6 +139,9 @@ impl RequestOptions {
         options.set_retry_throttler(self.retry_throttler.clone());
         if let Some(ref i) = self.idempotency {
             options.set_idempotency(*i);
+        }
+        if let Some(ref ua) = self.user_agent {
+            options.set_user_agent(ua);
         }
         options
     }

@@ -80,6 +80,9 @@ impl ReqwestClient {
         // Force http1 as http2 with not currently supported.
         // TODO(#4298): Remove after adding HTTP2 support.
         builder = builder.http1_only();
+        if let Some(user_agent) = config.user_agent.as_deref() {
+            builder = builder.user_agent(user_agent);
+        }
         if config.disable_automatic_decompression {
             builder = builder.no_gzip().no_brotli().no_deflate().no_zstd();
         }
@@ -784,6 +787,32 @@ mod tests {
             }
         );
         assert_eq!(result.err().unwrap().http_status_code(), Some(308));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_user_agent() -> TestResult {
+        let server = httptest::Server::run();
+        server.expect(
+            httptest::Expectation::matching(httptest::matchers::all_of![
+                httptest::matchers::request::method_path("GET", "/foo"),
+                httptest::matchers::request::headers(httptest::matchers::contains((
+                    "user-agent",
+                    "test-only/1.2.3"
+                ))),
+            ])
+            .respond_with(httptest::responders::status_code(200).body("{}")),
+        );
+
+        let mut config = ClientConfig::default();
+        config.cred = Some(Anonymous::new().build());
+        config.user_agent = Some("test-only/1.2.3".to_string());
+        let client = ReqwestClient::new(config, &server.url_str("/")).await?;
+        let builder = client.builder(Method::GET, "foo".to_string());
+        let options = RequestOptions::default();
+
+        let response = client.execute::<(), wkt::Empty>(builder, None, options).await;
+        assert!(response.is_ok(), "{:?}", response.err());
         Ok(())
     }
 }

@@ -64,6 +64,7 @@ pub type InnerClient = Grpc<GrpcService>;
 pub struct Client {
     inner: InnerClient,
     credentials: Credentials,
+    user_agent: Option<String>,
     retry_policy: Arc<dyn RetryPolicy>,
     backoff_policy: Arc<dyn BackoffPolicy>,
     retry_throttler: SharedRetryThrottler,
@@ -118,6 +119,7 @@ impl Client {
         Ok(Self {
             inner,
             credentials,
+            user_agent: config.user_agent.clone(),
             retry_policy: config.retry_policy.clone().unwrap_or_else(|| {
                 Arc::new(
                     RetryAip194Strict
@@ -153,7 +155,13 @@ impl Client {
         Request: prost::Message + Clone + 'static,
         Response: prost::Message + Default + 'static,
     {
-        let headers = Self::make_headers(api_client_header, request_params, &options).await?;
+        let headers = Self::make_headers(
+            api_client_header,
+            request_params,
+            &options,
+            self.user_agent.as_deref(),
+        )
+        .await?;
         self.retry_loop::<Request, Response>(extensions, path, request, options, headers)
             .await
     }
@@ -203,7 +211,13 @@ impl Client {
         Response: prost::Message + Default + 'static,
     {
         use ::tonic::IntoStreamingRequest;
-        let headers = Self::make_headers(api_client_header, request_params, &options).await?;
+        let headers = Self::make_headers(
+            api_client_header,
+            request_params,
+            &options,
+            self.user_agent.as_deref(),
+        )
+        .await?;
         let headers = self.add_auth_headers(headers).await?;
         let metadata = tonic::MetadataMap::from_headers(headers);
         let request = ::tonic::Request::from_parts(metadata, extensions, request);
@@ -418,9 +432,10 @@ impl Client {
         api_client_header: &'static str,
         request_params: &str,
         options: &RequestOptions,
+        client_user_agent: Option<&str>,
     ) -> Result<http::header::HeaderMap> {
         let mut headers = HeaderMap::new();
-        if let Some(user_agent) = options.user_agent() {
+        if let Some(user_agent) = options.user_agent().as_deref().or(client_user_agent) {
             headers.append(
                 http::header::USER_AGENT,
                 http::header::HeaderValue::from_str(user_agent).map_err(Error::ser)?,
