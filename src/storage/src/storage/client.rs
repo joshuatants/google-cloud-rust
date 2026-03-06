@@ -278,8 +278,8 @@ where
     {
         OpenObject::new(
             self.stub.clone(),
-            bucket,
-            object,
+            bucket.into(),
+            object.into(),
             self.options.clone(),
         )
     }
