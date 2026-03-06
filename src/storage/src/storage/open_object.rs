@@ -104,10 +104,10 @@ where
 }
 
 impl<S> OpenObject<S> {
-    pub(crate) fn new(
-        bucket: String,
-        object: String,
+    pub(crate) fn new<B: Into<String>, O: Into<String>>(
         stub: Arc<S>,
+        bucket: B,
+        object: O,
         options: RequestOptions,
     ) -> Self {
         let request = OpenObjectRequest::default()
@@ -501,9 +501,9 @@ mod tests {
     async fn attributes() -> Result<()> {
         let options = RequestOptions::new();
         let builder = OpenObject::new(
-            BUCKET_NAME.to_string(),
-            OBJECT_NAME.to_string(),
             Arc::new(StorageStub),
+            BUCKET_NAME,
+            OBJECT_NAME,
             options,
         )
         .set_generation(123)
@@ -527,9 +527,9 @@ mod tests {
     async fn csek() -> Result<()> {
         let options = RequestOptions::new();
         let builder = OpenObject::new(
-            BUCKET_NAME.to_string(),
-            OBJECT_NAME.to_string(),
             Arc::new(StorageStub),
+            BUCKET_NAME,
+            OBJECT_NAME,
             options,
         );
 
@@ -553,9 +553,9 @@ mod tests {
 
         let options = RequestOptions::new();
         let builder = OpenObject::new(
-            BUCKET_NAME.to_string(),
-            OBJECT_NAME.to_string(),
             Arc::new(StorageStub),
+            BUCKET_NAME,
+            OBJECT_NAME,
             options,
         )
         .with_backoff_policy(
