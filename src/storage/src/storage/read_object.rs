@@ -91,21 +91,17 @@ impl<S> ReadObject<S>
 where
     S: crate::storage::stub::Storage + 'static,
 {
-    pub(crate) fn new<B, O>(
+    pub(crate) fn new(
         stub: std::sync::Arc<S>,
-        bucket: B,
-        object: O,
+        bucket: impl Into<String>,
+        object: impl Into<String>,
         options: RequestOptions,
-    ) -> Self
-    where
-        B: Into<String>,
-        O: Into<String>,
-    {
+    ) -> Self {
         ReadObject {
             stub,
             request: crate::model::ReadObjectRequest::new()
-                .set_bucket(bucket)
-                .set_object(object),
+                .set_bucket(bucket.into())
+                .set_object(object.into()),
             options,
         }
     }

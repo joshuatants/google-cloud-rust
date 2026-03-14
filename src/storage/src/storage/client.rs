@@ -277,9 +277,9 @@ where
         O: Into<String>,
     {
         OpenObject::new(
+            self.stub.clone(),
             bucket.into(),
             object.into(),
-            self.stub.clone(),
             self.options.clone(),
         )
     }
