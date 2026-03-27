@@ -222,7 +222,12 @@ where
         B: Into<String>,
         O: Into<String>,
     {
-        ReadObject::new(self.stub.clone(), bucket, object, self.options.clone())
+        ReadObject::new(
+            self.stub.clone(),
+            bucket,
+            object,
+            self.options.clone(),
+        )
     }
 
     /// Opens an object to read its contents using concurrent ranged reads.
@@ -277,9 +282,9 @@ where
         O: Into<String>,
     {
         OpenObject::new(
-            bucket.into(),
-            object.into(),
             self.stub.clone(),
+            bucket,
+            object,
             self.options.clone(),
         )
     }
