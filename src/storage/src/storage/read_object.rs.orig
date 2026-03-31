@@ -96,7 +96,7 @@ where
         bucket: impl Into<String>,
         object: impl Into<String>,
         options: RequestOptions,
-    ) -> Self {
+    {
         ReadObject {
             stub,
             request: crate::model::ReadObjectRequest::new()

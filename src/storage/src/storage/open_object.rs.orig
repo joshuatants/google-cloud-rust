@@ -501,9 +501,9 @@ mod tests {
     async fn attributes() -> Result<()> {
         let options = RequestOptions::new();
         let builder = OpenObject::new(
-            Arc::new(StorageStub),
             BUCKET_NAME.to_string(),
             OBJECT_NAME.to_string(),
+            Arc::new(StorageStub),
             options,
         )
         .set_generation(123)
