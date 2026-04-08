@@ -180,12 +180,12 @@ where
     /// [StreamingSource]: crate::streaming_source::StreamingSource
     /// [send_buffered()]: crate::builder::storage::WriteObject::send_buffered
     /// [send_unbuffered()]: crate::builder::storage::WriteObject::send_unbuffered
-    pub fn write_object<B, O, T, P>(&self, bucket: B, object: O, payload: T) -> WriteObject<P, S>
-    where
-        B: Into<String>,
-        O: Into<String>,
-        T: Into<Payload<P>>,
-    {
+    pub fn write_object<P>(
+        &self,
+        bucket: impl Into<String>,
+        object: impl Into<String>,
+        payload: impl Into<Payload<P>>,
+    ) -> WriteObject<P, S> {
         WriteObject::new(
             self.stub.clone(),
             bucket,
@@ -217,11 +217,11 @@ where
     /// * `bucket` - the bucket name containing the object. In
     ///   `projects/_/buckets/{bucket_id}` format.
     /// * `object` - the object name.
-    pub fn read_object<B, O>(&self, bucket: B, object: O) -> ReadObject<S>
-    where
-        B: Into<String>,
-        O: Into<String>,
-    {
+    pub fn read_object(
+        &self,
+        bucket: impl Into<String>,
+        object: impl Into<String>,
+    ) -> ReadObject<S> {
         ReadObject::new(self.stub.clone(), bucket, object, self.options.clone())
     }
 
@@ -271,15 +271,15 @@ where
     /// * `bucket` - the bucket name containing the object. In
     ///   `projects/_/buckets/{bucket_id}` format.
     /// * `object` - the object name.
-    pub fn open_object<B, O>(&self, bucket: B, object: O) -> OpenObject<S>
-    where
-        B: Into<String>,
-        O: Into<String>,
-    {
+    pub fn open_object(
+        &self,
+        bucket: impl Into<String>,
+        object: impl Into<String>,
+    ) -> OpenObject<S> {
         OpenObject::new(
-            bucket.into(),
-            object.into(),
             self.stub.clone(),
+            bucket,
+            object,
             self.options.clone(),
         )
     }

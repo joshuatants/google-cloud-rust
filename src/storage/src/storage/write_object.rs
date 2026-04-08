@@ -946,18 +946,13 @@ where
         this
     }
 
-    pub(crate) fn new<B, O, P>(
+    pub(crate) fn new(
         stub: std::sync::Arc<S>,
-        bucket: B,
-        object: O,
-        payload: P,
+        bucket: impl Into<String>,
+        object: impl Into<String>,
+        payload: impl Into<Payload<T>>,
         options: RequestOptions,
-    ) -> Self
-    where
-        B: Into<String>,
-        O: Into<String>,
-        P: Into<Payload<T>>,
-    {
+    ) -> Self {
         let resource = crate::model::Object::new()
             .set_bucket(bucket)
             .set_name(object);
