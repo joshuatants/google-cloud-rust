@@ -21,8 +21,8 @@ use google_cloud_storage::model_ext::ReadRange;
 use google_cloud_storage::read_object::ReadObjectResponse;
 use pretty_assertions::assert_eq;
 use storage_grpc_mock::google::storage::v2::{
-    BidiReadObjectRequest, BidiReadObjectResponse, ChecksummedData, Object as ProtoObject,
-    ObjectRangeData, ReadRange as ProtoRange,
+    BidiReadHandle, BidiReadObjectRedirectedError, BidiReadObjectRequest, BidiReadObjectResponse,
+    ChecksummedData, Object as ProtoObject, ObjectRangeData, ReadRange as ProtoRange,
 };
 use storage_grpc_mock::{MockStorage, start};
 
@@ -403,6 +403,104 @@ async fn transient_stream_error_resumes_partial_read() -> anyhow::Result<()> {
         }]
     );
     Ok(())
+}
+
+#[tokio::test]
+async fn open_object_redirect_resumes_with_routing_token_and_read_handle() -> anyhow::Result<()> {
+    // Arrange
+    let (attempt1_tx, attempt1_rx) = tokio::sync::oneshot::channel::<BidiReadObjectRequest>();
+    let (attempt2_tx, attempt2_rx) = tokio::sync::oneshot::channel::<BidiReadObjectRequest>();
+    let attempt1_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(attempt1_tx)));
+    let attempt2_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(attempt2_tx)));
+
+    let mut mock = MockStorage::new();
+    mock.expect_bidi_read_object()
+        .times(2)
+        .returning(move |request| {
+            let (_, _, mut requests) = request.into_parts();
+            if let Some(tx) = attempt1_tx.lock().expect("mutex").take() {
+                tokio::spawn(async move {
+                    let first = requests
+                        .recv()
+                        .await
+                        .expect(ERR_STREAM_CLOSED_PREMATURELY)
+                        .expect(ERR_RECV_ERROR);
+                    tx.send(first).expect("send attempt 1");
+                });
+                return Err(redirect_status("test-routing-token", b"test-read-handle"));
+            }
+            if let Some(tx) = attempt2_tx.lock().expect("mutex").take() {
+                tokio::spawn(async move {
+                    let first = requests
+                        .recv()
+                        .await
+                        .expect(ERR_STREAM_CLOSED_PREMATURELY)
+                        .expect(ERR_RECV_ERROR);
+                    tx.send(first).expect("send attempt 2");
+                });
+                let (tx, rx) = tokio::sync::mpsc::channel(1);
+                tx.try_send(Ok(initial_response_with_data(
+                    ProtoRange {
+                        read_id: 0,
+                        ..ProtoRange::default()
+                    },
+                    OBJECT_CONTENT.to_vec(),
+                    true,
+                )))
+                .expect("send response");
+                return Ok(TonicResponse::from(rx));
+            }
+            Err(TonicStatus::internal("unexpected attempt"))
+        });
+
+    let (endpoint, _server) = start(BIND_ADDRESS, mock).await?;
+    let client = make_client(endpoint).await?;
+
+    // Act
+    let (_descriptor, reader) = client
+        .open_object(BUCKET_NAME, OBJECT_NAME)
+        .send_and_read(ReadRange::all())
+        .await?;
+
+    // Assert
+    let req1 = attempt1_rx.await?;
+    let spec1 = req1.read_object_spec.expect("attempt 1 spec");
+    assert_eq!(spec1.routing_token, None);
+    assert_eq!(spec1.read_handle, None);
+
+    let req2 = attempt2_rx.await?;
+    let spec2 = req2.read_object_spec.expect("attempt 2 spec");
+    assert_eq!(spec2.routing_token, Some("test-routing-token".to_string()));
+    assert_eq!(
+        spec2.read_handle,
+        Some(BidiReadHandle {
+            handle: b"test-read-handle".to_vec(),
+        })
+    );
+
+    let got_payload = read_all_bytes(reader).await?;
+    assert_eq!(got_payload, OBJECT_CONTENT);
+
+    Ok(())
+}
+
+fn redirect_status(routing: &str, handle: &'static [u8]) -> TonicStatus {
+    use prost::Message as _;
+    let redirect = BidiReadObjectRedirectedError {
+        routing_token: Some(routing.to_string()),
+        read_handle: Some(BidiReadHandle {
+            handle: handle.to_vec(),
+        }),
+    };
+    let redirect = prost_types::Any::from_msg(&redirect).expect("encode redirect any");
+    let status = storage_grpc_mock::google::rpc::Status {
+        code: gaxi::grpc::tonic::Code::Aborted as i32,
+        message: "redirected".into(),
+        details: vec![redirect],
+    };
+    let mut buf = bytes::BytesMut::with_capacity(256);
+    status.encode(&mut buf).expect("encode rpc status");
+    TonicStatus::with_details(gaxi::grpc::tonic::Code::Aborted, "redirected", buf.freeze())
 }
 
 async fn make_client(endpoint: impl Into<String>) -> anyhow::Result<Storage> {
